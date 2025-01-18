@@ -1,0 +1,176 @@
+(() => {
+  // Base custom element class
+  var r = class extends HTMLElement {
+    static name = "";
+    static observedAttributes = [];
+    
+    static define() {
+      window.customElements.define(this.name, this);
+    }
+
+    $clone(e) {
+      return document.querySelector(e).content.cloneNode(true).children[0];
+    }
+
+    constructor() {
+      super();
+      // Loop through attributes and handle custom behavior
+      for (let e of this.getAttributeNames()) {
+        let i = Object.getPrototypeOf(this),
+            s = Object.getOwnPropertyDescriptor(i, e);
+
+        // Add event listener for attributes starting with "on-"
+        if (e.startsWith("on-")) {
+          this.addEventListener(e.slice(3), this[this.getAttribute(e)].bind(this));
+        }
+
+        // Define getters and setters for attributes
+        s ? (s.get || c(i, e), s.set || d(i, e)) : (c(i, e), d(i, e));
+      }
+    }
+
+    attributeChangedCallback(e, i, s) {
+      if (s !== i) {
+        let l = {
+          attribute: e,
+          value: a(s),
+          previous: a(i)
+        };
+        this.dispatchEvent(new CustomEvent("new:" + e, { detail: l }));
+        this.render(l);
+      }
+    }
+
+    connectedCallback() {
+      this.connected();
+    }
+
+    disconnectedCallback() {
+      this.disconnected();
+    }
+
+    connected() {}
+    disconnected() {}
+    render() {}
+  };
+
+  // Helper function to convert attribute values
+  function a(t) {
+    switch (t) {
+      case "undefined":
+        return;
+      case "null":
+        return null;
+      case "true":
+        return true;
+      case "false":
+        return false;
+      default:
+        return t;
+    }
+  }
+
+  // Define getter and setter for attribute
+  function c(t, e) {
+    Object.defineProperty(t, e, {
+      configurable: true,
+      get() {
+        return a(this.getAttribute(e));
+      }
+    });
+  }
+
+  // Define setter for attribute
+  function d(t, e) {
+    Object.defineProperty(t, e, {
+      configurable: true,
+      set(i) {
+        i == null ? this.removeAttribute(e) : this.setAttribute(e, i);
+      }
+    });
+  }
+
+  // LazyImage custom element (handles lazy loading of images)
+  var n = class extends r {
+    static name = "lazy-image";
+    static observedAttributes = ["loaded"];
+    observer = null;
+    ui = {
+      img: this.querySelector("img"),
+      source_small: this.querySelector('source[name="small"]'),
+      source_medium: this.querySelector('source[name="medium"]')
+    };
+
+    connected() {
+      if ("IntersectionObserver" in window) {
+        this.observer = new IntersectionObserver(this.observer_handler.bind(this), {
+          root: null,
+          threshold: 0.1,
+          rootMargin: "50px"
+        });
+        this.observer.observe(this.ui.img);
+      } else {
+        this.load_image();
+      }
+    }
+
+    observer_handler(t) {
+      for (let e of t) {
+        if (e.intersectionRatio > 0) {
+          this.on_observe(e.target);
+          this.observer.unobserve(e.target);
+        }
+      }
+    }
+
+    on_observe() {
+      let t = new Image();
+      t.src = this.url;
+      t.onload = this.load_image.bind(this);
+    }
+
+    load_image() {
+      this.loaded = true;
+      this.ui.img.src = this.url;
+      this.ui.source_small.srcset = this["url-small"];
+      this.ui.source_medium.srcset = this["url-medium"];
+    }
+  };
+
+  // LinkHover custom element (adds hover effect with dynamic text)
+  var o = class extends r {
+    static name = "link-hover";
+    overlay_rotate = false;
+    overlay_size = 50;
+    ui = {
+      overlay: document.createElement("link-hover-overlay")
+    };
+
+    connected() {
+      if (window.matchMedia("(min-width: 1024px)").matches) {
+        this.addEventListener("mouseenter", this.on_mouseenter.bind(this));
+        this.addEventListener("mouseleave", this.on_mouseleave.bind(this));
+      } else {
+        this.removeEventListener("mouseenter", this.on_mouseenter.bind(this));
+        this.removeEventListener("mouseleave", this.on_mouseleave.bind(this));
+      }
+    }
+
+    on_mouseenter() {
+      let t = window.innerWidth - 100;
+      for (this.ui.overlay.textContent = this.title, document.body.appendChild(this.ui.overlay); this.ui.overlay.getBoundingClientRect().width < t;) {
+        this.overlay_size += 5;
+        this.ui.overlay.style.fontSize = this.overlay_size + "px";
+      }
+    }
+
+    on_mouseleave() {
+      this.overlay_size = 50;
+      this.ui.overlay.remove();
+    }
+  };
+
+  // Define the custom elements
+  n.define();
+  o.define();
+})();
